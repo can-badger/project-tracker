@@ -22,29 +22,22 @@ class _HomePageState extends State<HomePage> {
   }
   
   Future<void> _fetchProjects() async {
-    final session = Supabase.instance.client.auth.currentSession;
-    if (session == null) {
-      setState(() {
-        loading = false;
-      });
-      return;
-    }
-    final userId = session.user.id;
-    try {
-      final data = await Supabase.instance.client
-          .from('projects')
-          .select('*')
-          .eq('user_id', userId);
-      projects = (data as List)
-          .map((item) => Project.fromMap(item as Map<String, dynamic>))
-          .toList();
-    } catch (error) {
-      print("Error fetching projects: $error");
-    }
-    setState(() {
-      loading = false;
-    });
+  // Eğer tüm projeler gösterilecekse, kullanıcı filtresi kaldırılıyor.
+  try {
+    final data = await Supabase.instance.client
+        .from('projects')
+        .select('*');  // .eq('user_id', userId) kısmı kaldırıldı.
+    projects = (data as List)
+        .map((item) => Project.fromMap(item as Map<String, dynamic>))
+        .toList();
+  } catch (error) {
+    print("Error fetching projects: $error");
   }
+  setState(() {
+    loading = false;
+  });
+}
+
   
   Future<void> _addProject(String title, String description) async {
     final session = Supabase.instance.client.auth.currentSession;

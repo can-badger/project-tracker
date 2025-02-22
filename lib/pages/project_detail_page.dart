@@ -212,10 +212,12 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                                 firstDate: DateTime(now.year - 5),
                                 lastDate: DateTime(now.year + 5),
                               );
-                              setStateDialog(() {
-                                deadline = pickedDate;
-                              });
-                                                        },
+                              if (pickedDate != null) {
+                                setStateDialog(() {
+                                  deadline = pickedDate;
+                                });
+                              }
+                            },
                           ),
                         ],
                       ),
@@ -384,10 +386,12 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                                 firstDate: DateTime(now.year - 5),
                                 lastDate: DateTime(now.year + 5),
                               );
-                              setStateDialog(() {
-                                deadline = pickedDate;
-                              });
-                                                        },
+                              if (pickedDate != null) {
+                                setStateDialog(() {
+                                  deadline = pickedDate;
+                                });
+                              }
+                            },
                           ),
                         ],
                       ),
