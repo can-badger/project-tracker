@@ -1,9 +1,8 @@
 {
     "builds": [
       {
-        "src": "build/web/**",
-        "use": "@vercel/static-build",
-        "config": { "distDir": "build/web" }
+        "src": "build/web/index.html",
+        "use": "@vercel/static"
       }
     ],
     "routes": [
