@@ -1,7 +1,13 @@
 {
-    "public": "build/web",
-    "rewrites": [
-      { "source": "/(.*)", "destination": "/index.html" }
+    "builds": [
+      {
+        "src": "build/web/**",
+        "use": "@vercel/static-build",
+        "config": { "distDir": "build/web" }
+      }
+    ],
+    "routes": [
+      { "src": "/(.*)", "dest": "/index.html" }
     ]
   }
   
