@@ -1,0 +1,28 @@
+lib/
+ ┣━ models/
+ ┃   ┣━ project.dart         // Proje modeli
+ ┃   ┣━ task.dart            // Görev modeli
+ ┃   ┗━ user.dart            // Kullanıcı/Profil modeli
+ ┣━ pages/
+ ┃   ┣━ login_page.dart      // Giriş ekranı
+ ┃   ┣━ home_page.dart       // Ana sayfa: Proje ekleme, silme, düzenleme ve listeleme
+ ┃   ┣━ project_detail/      // Proje detayları
+ ┃   ┃   ┣━ project_detail_page.dart  // Proje detayına girildiğinde, departman sekmeleri burada yer alacak
+ ┃   ┃   ┗━ widgets/
+ ┃   ┃       ┣━ department_tabs.dart   // Proje detayındaki departman sekmeleri (örn. "DEV", "ART", "Dijital Pazarlama", "Grafik Tasarım", "Kurumsal")
+ ┃   ┃       ┣━ tasks_subtabs.dart       // Her departmanın içindeki "Aktif Görevler" ve "Tamamlanan Görevler" sekmeleri
+ ┃   ┃       ┗━ tasks_table.dart         // Görev listesi; filtreleme ve sıralama seçenekleri burada
+ ┃   ┣━ profile/            // Profil sayfası ve kullanıcı ayarları
+ ┃   ┃   ┣━ profile_page.dart  // Kullanıcının profil bilgilerini ve özelleştirme seçeneklerini gösteren sayfa
+ ┃   ┃   ┗━ widgets/
+ ┃   ┃       ┣━ profile_header.dart    // Profil başlığı ve kullanıcı bilgileri
+ ┃   ┃       ┣━ profile_settings.dart  // Profilde ayarlanabilir seçenekler (örneğin; isim, soyisim, profil fotoğrafı, vs.)
+ ┣━ services/
+ ┃   ┣━ auth_service.dart     // Giriş işlemleri
+ ┃   ┣━ project_service.dart  // Proje ile ilgili CRUD işlemleri
+ ┃   ┣━ task_service.dart     // Görevlerle ilgili işlemler
+ ┃   ┗━ profile_service.dart  // Profil güncellemeleri ve kullanıcı verisi işlemleri
+ ┣━ utils/
+ ┃   ┗━ helpers.dart          // Yardımcı fonksiyonlar, sabitler vs.
+ ┣━ widgets/                  // Uygulama genelinde kullanılan ortak widget’lar
+ ┣━ main.dart                 // Uygulamanın giriş noktası
