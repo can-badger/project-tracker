@@ -14,7 +14,7 @@ class ProjectDetailPage extends StatefulWidget {
   _ProjectDetailPageState createState() => _ProjectDetailPageState();
 }
 
-class _ProjectDetailPageState extends State<ProjectDetailPage> with TickerProviderStateMixin {
+class _ProjectDetailPageState extends State<ProjectDetailPage> {
   // Sabit departman listesi
   final List<String> departments = [
     'DEV',
@@ -23,6 +23,9 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> with TickerProvid
     'Grafik Tasarım',
     'Kurumsal'
   ];
+
+  // Seçili departman indeksi
+  int _currentDepartmentIndex = 0;
 
   // Her departman için görev listelerini saklayan haritalar
   Map<String, List<Task>> activeTasks = {};
@@ -67,7 +70,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> with TickerProvid
         completedTasks[dept] = completed;
         isLoadingTasks[dept] = false;
       });
-        } catch (e) {
+    } catch (e) {
       print("Error loading tasks for $dept: $e");
       setState(() {
         isLoadingTasks[dept] = false;
@@ -77,45 +80,62 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> with TickerProvid
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: departments.length,
-      child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: badgerPrimary,
-          title: Text('Proje: ${widget.project.title}'),
-          bottom: TabBar(
-            isScrollable: true,
-            indicatorSize: TabBarIndicatorSize.tab,
-            indicator: BoxDecoration(
-              color: badgerAccent,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            labelStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            unselectedLabelStyle: const TextStyle(fontSize: 16),
-            tabs: departments
-                .map((dept) => Container(
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: badgerPrimary,
+        title: Text('Proje: ${widget.project.title}'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: departments.asMap().entries.map((entry) {
+              int idx = entry.key;
+              String dept = entry.value;
+              final int activeCount = activeTasks[dept]?.length ?? 0;
+              final int completedCount = completedTasks[dept]?.length ?? 0;
+              final int totalCount = activeCount + completedCount;
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _currentDepartmentIndex = idx;
+                  });
+                },
+                child: Container(
                   height: 30,
-                      width: MediaQuery.of(context).size.width / departments.length,
-                      alignment: Alignment.center,
-                      child: Text(dept),
-                    ))
-                .toList(),
+                  width: MediaQuery.of(context).size.width / departments.length,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: _currentDepartmentIndex == idx ? badgerAccent : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    "$dept($totalCount)",
+                    style: TextStyle(
+                      fontSize: _currentDepartmentIndex == idx ? 18 : 16,
+                      fontWeight: _currentDepartmentIndex == idx ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
           ),
         ),
-        body: TabBarView(
-          children: departments.map((dept) {
-            return DepartmentPanel(
-              projectId: widget.project.id,
-              department: dept,
-              activeTasks: activeTasks[dept] ?? [],
-              completedTasks: completedTasks[dept] ?? [],
-              isLoading: isLoadingTasks[dept] ?? true,
-              refreshTasks: () => _loadTasksForDepartment(dept),
-              badgerPrimary: badgerPrimary,
-              badgerAccent: badgerAccent,
-              badgerLight: badgerLight,
-            );
-          }).toList(),
+      ),
+      // Departman paneli için AnimatedSwitcher (fade animasyonu)
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
+        child: DepartmentPanel(
+          key: ValueKey(_currentDepartmentIndex),
+          projectId: widget.project.id,
+          department: departments[_currentDepartmentIndex],
+          activeTasks: activeTasks[departments[_currentDepartmentIndex]] ?? [],
+          completedTasks: completedTasks[departments[_currentDepartmentIndex]] ?? [],
+          isLoading: isLoadingTasks[departments[_currentDepartmentIndex]] ?? true,
+          refreshTasks: () => _loadTasksForDepartment(departments[_currentDepartmentIndex]),
+          badgerPrimary: badgerPrimary,
+          badgerAccent: badgerAccent,
+          badgerLight: badgerLight,
         ),
       ),
     );
@@ -150,8 +170,9 @@ class DepartmentPanel extends StatefulWidget {
   _DepartmentPanelState createState() => _DepartmentPanelState();
 }
 
-class _DepartmentPanelState extends State<DepartmentPanel> with TickerProviderStateMixin {
-  late TabController _subTabController;
+class _DepartmentPanelState extends State<DepartmentPanel> {
+  // 0: Aktif Görevler, 1: Tamamlanan Görevler
+  int _currentSubTabIndex = 0;
 
   // For adding/editing tasks
   final TextEditingController _taskTitleController = TextEditingController();
@@ -165,32 +186,27 @@ class _DepartmentPanelState extends State<DepartmentPanel> with TickerProviderSt
   @override
   void initState() {
     super.initState();
-    _subTabController = TabController(length: 2, vsync: this);
     _fetchAvailableUsers();
   }
 
   Future<void> _fetchAvailableUsers() async {
     try {
-      final data = await Supabase.instance.client
-          .from('profiles')
-          .select('email');
+      final data = await Supabase.instance.client.from('profiles').select('email');
       setState(() {
         availableUsers = data.map((e) => (e)['email'].toString()).toList();
       });
-        } catch (e) {
+    } catch (e) {
       print("Error fetching available users: $e");
     }
   }
 
   @override
   void dispose() {
-    _subTabController.dispose();
     _taskTitleController.dispose();
     _taskDescriptionController.dispose();
     super.dispose();
   }
 
-  // FloatingActionButton olarak sağ alt köşede görev ekleme butonu
   void _showAddTaskDialog() {
     // Clear fields
     _taskTitleController.clear();
@@ -212,13 +228,11 @@ class _DepartmentPanelState extends State<DepartmentPanel> with TickerProviderSt
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Görev Başlığı
                   TextField(
                     controller: _taskTitleController,
                     decoration: const InputDecoration(labelText: "Görev Başlığı *"),
                   ),
                   const SizedBox(height: 16),
-                  // Deadline seçimi
                   Row(
                     children: [
                       Expanded(
@@ -249,7 +263,6 @@ class _DepartmentPanelState extends State<DepartmentPanel> with TickerProviderSt
                     ],
                   ),
                   const SizedBox(height: 16),
-                  // Öncelik Durumu
                   DropdownButtonFormField<String>(
                     decoration: const InputDecoration(
                       labelText: "Öncelik Durumu",
@@ -258,12 +271,12 @@ class _DepartmentPanelState extends State<DepartmentPanel> with TickerProviderSt
                     style: const TextStyle(fontSize: 14, color: Colors.black),
                     value: priority,
                     hint: const Text("Seçiniz", style: TextStyle(fontSize: 14)),
-                    items: ['Acil', 'Orta', 'Sakin'].map((option) {
-                      return DropdownMenuItem(
-                        value: option,
-                        child: Text(option, style: const TextStyle(fontSize: 14)),
-                      );
-                    }).toList(),
+                    items: ['Acil', 'Orta', 'Sakin']
+                        .map((option) => DropdownMenuItem(
+                              value: option,
+                              child: Text(option, style: const TextStyle(fontSize: 14)),
+                            ))
+                        .toList(),
                     onChanged: (value) {
                       setStateDialog(() {
                         priority = value;
@@ -271,7 +284,6 @@ class _DepartmentPanelState extends State<DepartmentPanel> with TickerProviderSt
                     },
                   ),
                   const SizedBox(height: 16),
-                  // Atanan Kişiler (Assign) - MultiSelect
                   MultiSelectDialogField<String>(
                     items: availableUsers
                         .map((user) => MultiSelectItem<String>(user, user))
@@ -286,7 +298,6 @@ class _DepartmentPanelState extends State<DepartmentPanel> with TickerProviderSt
                     },
                   ),
                   const SizedBox(height: 16),
-                  // Task'ın Aktif Durumu (Durum)
                   DropdownButtonFormField<String>(
                     decoration: const InputDecoration(
                       labelText: "Task'ın Aktif Durumu",
@@ -295,12 +306,12 @@ class _DepartmentPanelState extends State<DepartmentPanel> with TickerProviderSt
                     style: const TextStyle(fontSize: 14, color: Colors.black),
                     value: activeStatus,
                     hint: const Text("Seçiniz", style: TextStyle(fontSize: 14)),
-                    items: ['Yapılıyor', 'Beklemede'].map((option) {
-                      return DropdownMenuItem(
-                        value: option,
-                        child: Text(option, style: const TextStyle(fontSize: 14)),
-                      );
-                    }).toList(),
+                    items: ['Yapılıyor', 'Beklemede']
+                        .map((option) => DropdownMenuItem(
+                              value: option,
+                              child: Text(option, style: const TextStyle(fontSize: 14)),
+                            ))
+                        .toList(),
                     onChanged: (value) {
                       setStateDialog(() {
                         activeStatus = value;
@@ -308,7 +319,6 @@ class _DepartmentPanelState extends State<DepartmentPanel> with TickerProviderSt
                     },
                   ),
                   const SizedBox(height: 16),
-                  // Açıklama
                   TextField(
                     controller: _taskDescriptionController,
                     decoration: const InputDecoration(labelText: "Açıklama"),
@@ -319,9 +329,7 @@ class _DepartmentPanelState extends State<DepartmentPanel> with TickerProviderSt
             ),
             actions: [
               TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
+                onPressed: () => Navigator.pop(context),
                 child: const Text("İptal"),
               ),
               ElevatedButton(
@@ -361,13 +369,17 @@ class _DepartmentPanelState extends State<DepartmentPanel> with TickerProviderSt
     );
   }
 
-  // DataTable oluşturma fonksiyonu: Ekran genişliğine göre düzenlendi.
   Widget _buildDataTable(List<Task> tasks) {
     return LayoutBuilder(builder: (context, constraints) {
       return SizedBox(
         width: constraints.maxWidth,
         child: DataTable(
           showCheckboxColumn: false,
+          // DataTable boşluk ayarları (isteğe bağlı olarak azaltılabilir)
+          columnSpacing: 8,
+          horizontalMargin: 8,
+          headingRowHeight: 40,
+          dataRowHeight: 40,
           columns: const [
             DataColumn(label: Text("Tamamlandı")),
             DataColumn(label: Text("Başlık")),
@@ -393,9 +405,10 @@ class _DepartmentPanelState extends State<DepartmentPanel> with TickerProviderSt
                     value: task.isCompleted,
                     onChanged: (value) async {
                       try {
-                        await Supabase.instance.client.from('tasks').update({
-                          'is_completed': value,
-                        }).eq('id', task.id);
+                        await Supabase.instance.client
+                            .from('tasks')
+                            .update({'is_completed': value})
+                            .eq('id', task.id);
                         widget.refreshTasks();
                       } catch (e) {
                         print("Error updating is_completed: $e");
@@ -417,7 +430,10 @@ class _DepartmentPanelState extends State<DepartmentPanel> with TickerProviderSt
                     icon: Icon(Icons.delete, color: task.isCompleted ? Colors.white : Colors.black),
                     onPressed: () async {
                       try {
-                        await Supabase.instance.client.from('tasks').delete().eq('id', task.id);
+                        await Supabase.instance.client
+                            .from('tasks')
+                            .delete()
+                            .eq('id', task.id);
                         widget.refreshTasks();
                       } catch (e) {
                         print("Error deleting task: $e");
@@ -426,9 +442,7 @@ class _DepartmentPanelState extends State<DepartmentPanel> with TickerProviderSt
                   ),
                 ),
               ],
-              onSelectChanged: (_) {
-                _showEditTaskDialog(task);
-              },
+              onSelectChanged: (_) => _showEditTaskDialog(task),
             );
           }).toList(),
         ),
@@ -436,15 +450,15 @@ class _DepartmentPanelState extends State<DepartmentPanel> with TickerProviderSt
     });
   }
 
-  // Görev düzenleme diyaloğu
   void _showEditTaskDialog(Task task) {
-    // Pre-fill controllers with existing task data.
     _taskTitleController.text = task.title;
     _taskDescriptionController.text = task.description ?? "";
     deadline = task.deadline;
     priority = task.priority;
     activeStatus = task.activeStatus;
-    selectedUsers = task.assignedTo != null ? task.assignedTo!.split(",").map((s) => s.trim()).toList() : [];
+    selectedUsers = task.assignedTo != null
+        ? task.assignedTo!.split(",").map((s) => s.trim()).toList()
+        : [];
     
     showDialog(
       context: context,
@@ -501,12 +515,12 @@ class _DepartmentPanelState extends State<DepartmentPanel> with TickerProviderSt
                     style: const TextStyle(fontSize: 14, color: Colors.black),
                     value: priority,
                     hint: const Text("Seçiniz", style: TextStyle(fontSize: 14)),
-                    items: ['Acil', 'Orta', 'Sakin'].map((option) {
-                      return DropdownMenuItem(
-                        value: option,
-                        child: Text(option, style: const TextStyle(fontSize: 14)),
-                      );
-                    }).toList(),
+                    items: ['Acil', 'Orta', 'Sakin']
+                        .map((option) => DropdownMenuItem(
+                              value: option,
+                              child: Text(option, style: const TextStyle(fontSize: 14)),
+                            ))
+                        .toList(),
                     onChanged: (value) {
                       setStateDialog(() {
                         priority = value;
@@ -536,12 +550,12 @@ class _DepartmentPanelState extends State<DepartmentPanel> with TickerProviderSt
                     style: const TextStyle(fontSize: 14, color: Colors.black),
                     value: activeStatus,
                     hint: const Text("Seçiniz", style: TextStyle(fontSize: 14)),
-                    items: ['Yapılıyor', 'Beklemede'].map((option) {
-                      return DropdownMenuItem(
-                        value: option,
-                        child: Text(option, style: const TextStyle(fontSize: 14)),
-                      );
-                    }).toList(),
+                    items: ['Yapılıyor', 'Beklemede']
+                        .map((option) => DropdownMenuItem(
+                              value: option,
+                              child: Text(option, style: const TextStyle(fontSize: 14)),
+                            ))
+                        .toList(),
                     onChanged: (value) {
                       setStateDialog(() {
                         activeStatus = value;
@@ -559,9 +573,7 @@ class _DepartmentPanelState extends State<DepartmentPanel> with TickerProviderSt
             ),
             actions: [
               TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
+                onPressed: () => Navigator.pop(context),
                 child: const Text("İptal"),
               ),
               ElevatedButton(
@@ -604,52 +616,94 @@ class _DepartmentPanelState extends State<DepartmentPanel> with TickerProviderSt
       children: [
         Column(
           children: [
-            // Alt TabBar: Aktif Görevler ve Tamamlanan Görevler
+            // Sub-tab bar: Aktif Görevler & Tamamlanan Görevler
             Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: TabBar(
-                controller: _subTabController,
-                indicatorSize: TabBarIndicatorSize.tab,
-                indicator: BoxDecoration(
-                  color: widget.badgerAccent,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                labelStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                unselectedLabelStyle: const TextStyle(fontSize: 16),
-                tabs: const [
-                  Tab(text: 'Aktif Görevler'),
-                  Tab(text: 'Tamamlanan Görevler'),
+              padding: EdgeInsets.zero, // boşluk azaltıldı
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _currentSubTabIndex = 0;
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: _currentSubTabIndex == 0 ? widget.badgerAccent : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Aktif Görevler',
+                        style: TextStyle(
+                          fontSize: _currentSubTabIndex == 0 ? 18 : 16,
+                          fontWeight: _currentSubTabIndex == 0 ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _currentSubTabIndex = 1;
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: _currentSubTabIndex == 1 ? widget.badgerAccent : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Tamamlanan Görevler',
+                        style: TextStyle(
+                          fontSize: _currentSubTabIndex == 1 ? 18 : 16,
+                          fontWeight: _currentSubTabIndex == 1 ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
             Expanded(
-              child: TabBarView(
-                controller: _subTabController,
-                children: [
-                  widget.isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : widget.activeTasks.isEmpty
-                          ? const Center(child: Text('Aktif görev bulunamadı.'))
-                          : SingleChildScrollView(
-                              child: _buildDataTable(widget.activeTasks),
-                            ),
-                  widget.isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : widget.completedTasks.isEmpty
-                          ? const Center(child: Text('Tamamlanan görev bulunamadı.'))
-                          : SingleChildScrollView(
-                              child: _buildDataTable(widget.completedTasks),
-                            ),
-                ],
-              ),
-            ),
+  child: AnimatedSwitcher(
+    duration: const Duration(milliseconds: 800),
+    transitionBuilder: (child, animation) =>
+        FadeTransition(opacity: animation, child: child),
+    child: Align(
+      alignment: Alignment.topCenter,
+      child: _currentSubTabIndex == 0
+          ? (widget.isLoading
+              ? const Center(key: ValueKey('loadingActive'), child: CircularProgressIndicator())
+              : widget.activeTasks.isEmpty
+                  ? const Center(key: ValueKey('noActive'), child: Text('Aktif görev bulunamadı.'))
+                  : SingleChildScrollView(
+                      key: const ValueKey('active'),
+                      padding: EdgeInsets.zero,
+                      child: _buildDataTable(widget.activeTasks),
+                    ))
+          : (widget.isLoading
+              ? const Center(key: ValueKey('loadingCompleted'), child: CircularProgressIndicator())
+              : widget.completedTasks.isEmpty
+                  ? const Center(key: ValueKey('noCompleted'), child: Text('Tamamlanan görev bulunamadı.'))
+                  : SingleChildScrollView(
+                      key: const ValueKey('completed'),
+                      padding: EdgeInsets.zero,
+                      child: _buildDataTable(widget.completedTasks),
+                    )),
+    ),
+  ),
+),
+
           ],
         ),
-        // Sağ altta, floating görev ekleme butonu
         Positioned(
           bottom: 16,
           right: 16,
           child: FloatingActionButton(
+            heroTag: 'fab-${widget.department}', // Benzersiz heroTag
             backgroundColor: widget.badgerAccent,
             onPressed: _showAddTaskDialog,
             child: const Icon(Icons.add),

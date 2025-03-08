@@ -37,7 +37,9 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadProjects() async {
     setState(() => isLoadingProjects = true);
     try {
-      projects = await ProjectService().fetchProjects();
+      var fetchedProjects = await ProjectService().fetchProjects();
+      // En son eklenen proje listenin başında gözükecek
+      projects = fetchedProjects.reversed.toList();
     } catch (error) {
       print("Error fetching projects: $error");
     }
@@ -54,8 +56,11 @@ class _HomePageState extends State<HomePage> {
           .select('*')
           .eq('user_id', userId);
       setState(() {
+        // En son eklenen todo listenin başında gözükecek
         myTodos = (data as List)
             .map((item) => item['title'].toString())
+            .toList()
+            .reversed
             .toList();
       });
     } catch (e) {
@@ -65,25 +70,27 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadMyTags() async {
-  final userEmail = Supabase.instance.client.auth.currentUser?.email;
-  if (userEmail == null) return;
-  setState(() => isLoadingTags = true);
-  try {
-    final data = await Supabase.instance.client
-        .from('tasks')
-        .select('*')
-        .ilike('assigned_to', '%$userEmail%'); // eq yerine ilike kullanıyoruz.
-    setState(() {
-      myTags = (data as List)
-          .map((item) => item['title'].toString())
-          .toList();
-    });
-  } catch (e) {
-    print("Error loading My Tags: $e");
+    final userEmail = Supabase.instance.client.auth.currentUser?.email;
+    if (userEmail == null) return;
+    setState(() => isLoadingTags = true);
+    try {
+      final data = await Supabase.instance.client
+          .from('tasks')
+          .select('*')
+          .ilike('assigned_to', '%$userEmail%');
+      setState(() {
+        // En son eklenen tag listenin başında gözükecek
+        myTags = (data as List)
+            .map((item) => item['title'].toString())
+            .toList()
+            .reversed
+            .toList();
+      });
+    } catch (e) {
+      print("Error loading My Tags: $e");
+    }
+    setState(() => isLoadingTags = false);
   }
-  setState(() => isLoadingTags = false);
-}
-
 
   void _showAddProjectDialog() {
     showDialog(
@@ -123,7 +130,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // _showAddTodoDialog artık user_email yerine user_id kullanıyor
   void _showAddTodoDialog() {
     showDialog(
       context: context,
@@ -178,6 +184,20 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         title: const Text('Ana Sayfa'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications),
+            onPressed: () {
+              // Bildirimler sayfasına yönlendirme veya bildirim gösterme kodları eklenebilir
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.account_circle),
+            onPressed: () {
+              // Profil sayfasına yönlendirme kodları eklenebilir
+            },
+          ),
+        ],
       ),
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -189,7 +209,6 @@ class _HomePageState extends State<HomePage> {
               color: Colors.grey.shade100,
               child: Column(
                 children: [
-                  // Çerçeveli "Projelerim" başlığı ve proje ekleme butonu
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
                     child: Container(
@@ -269,7 +288,7 @@ class _HomePageState extends State<HomePage> {
               color: Colors.blueGrey.shade50,
               child: Column(
                 children: [
-                  // Üst bölüm: My ToDo's başlığı (çerçeveli, tıklanabilir)
+                  // Üst bölüm: My ToDo's
                   Expanded(
                     flex: 1,
                     child: Container(
@@ -327,7 +346,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                   ),
-                  // Alt bölüm: My Tags başlığı (çerçeveli, tıklanabilir)
+                  // Alt bölüm: My Tags
                   Expanded(
                     flex: 1,
                     child: Container(

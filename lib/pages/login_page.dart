@@ -1,6 +1,7 @@
 // lib/pages/login_page.dart
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'home_page.dart'; // HomePage oluşturulduğunu varsayıyoruz
 
 class LoginPage extends StatefulWidget {
@@ -16,6 +17,28 @@ class _LoginPageState extends State<LoginPage> {
 
   bool _isLoading = false;
   String? _errorMessage;
+  bool _rememberMe = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkRememberMe();
+  }
+
+  Future<void> _checkRememberMe() async {
+    final prefs = await SharedPreferences.getInstance();
+    final rememberMe = prefs.getBool("remember_me") ?? false;
+    final session = Supabase.instance.client.auth.currentSession;
+    if (rememberMe && session != null) {
+      // Oturum varsa ve "Beni Hatırla" aktifse, otomatik olarak HomePage'e yönlendir.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomePage()),
+        );
+      });
+    }
+  }
 
   Future<void> _login() async {
     setState(() {
@@ -42,10 +65,19 @@ class _LoginPageState extends State<LoginPage> {
 
       if (response.session == null) {
         setState(() {
-          _errorMessage = 'Giriş yapılamadı.'; // Daha ayrıntılı hata mesajı ekleyebilirsiniz.
+          _errorMessage = 'Giriş yapılamadı.'; // Detaylı hata mesajı eklenebilir.
           _isLoading = false;
         });
       } else {
+        final prefs = await SharedPreferences.getInstance();
+        if (_rememberMe) {
+          // "Beni Hatırla" seçili ise bu bilgiyi kaydet
+          await prefs.setBool("remember_me", true);
+        } else {
+          // Seçilmediyse, varsa temizle
+          await prefs.remove("remember_me");
+        }
+
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const HomePage()),
@@ -72,14 +104,17 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                // Email TextField (Enter tuşu ile giriş tetiklenir)
                 TextField(
                   controller: _emailController,
                   decoration: const InputDecoration(
                     labelText: 'Email',
                     border: OutlineInputBorder(),
                   ),
+                  onSubmitted: (_) => _login(),
                 ),
                 const SizedBox(height: 16.0),
+                // Şifre TextField (Enter tuşu ile giriş tetiklenir)
                 TextField(
                   controller: _passwordController,
                   decoration: const InputDecoration(
@@ -87,14 +122,32 @@ class _LoginPageState extends State<LoginPage> {
                     border: OutlineInputBorder(),
                   ),
                   obscureText: true,
+                  onSubmitted: (_) => _login(),
                 ),
                 const SizedBox(height: 16.0),
-                if (_errorMessage != null)
+                // "Beni Hatırla" Checkbox
+                Row(
+                  children: [
+                    Checkbox(
+                      value: _rememberMe,
+                      onChanged: (value) {
+                        setState(() {
+                          _rememberMe = value ?? false;
+                        });
+                      },
+                    ),
+                    const Text("Beni Hatırla"),
+                  ],
+                ),
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: 16.0),
                   Text(
                     _errorMessage!,
                     style: const TextStyle(color: Colors.red),
                   ),
+                ],
                 const SizedBox(height: 16.0),
+                // Giriş Yap butonu veya yükleniyor göstergesi
                 _isLoading
                     ? const CircularProgressIndicator()
                     : ElevatedButton(
