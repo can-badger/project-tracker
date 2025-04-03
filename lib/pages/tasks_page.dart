@@ -1,4 +1,3 @@
-// lib/pages/tasks_page.dart
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/task.dart';
@@ -11,39 +10,30 @@ class TasksPage extends StatefulWidget {
 }
 
 class _TasksPageState extends State<TasksPage> {
-  List<Task> tasks = [];
-  bool loading = true;
+  Future<List<Task>>? _tasksFuture;
 
   @override
   void initState() {
     super.initState();
-    _fetchTasks();
+    _tasksFuture = _fetchTasks();
   }
 
-  Future<void> _fetchTasks() async {
+  Future<List<Task>> _fetchTasks() async {
     final session = Supabase.instance.client.auth.currentSession;
-    if (session == null) {
-      setState(() {
-        loading = false;
-      });
-      return;
-    }
+    if (session == null) return [];
     final userId = session.user.id;
     try {
       final data = await Supabase.instance.client
           .from('tasks')
           .select('*')
           .eq('user_id', userId);
-      // data is expected to be a List<dynamic>
-      tasks = (data as List)
+      return (data as List)
           .map((item) => Task.fromMap(item as Map<String, dynamic>))
           .toList();
     } catch (error) {
       print("Error fetching tasks: $error");
+      return [];
     }
-    setState(() {
-      loading = false;
-    });
   }
 
   Future<void> _addTask(String title, String description) async {
@@ -51,15 +41,15 @@ class _TasksPageState extends State<TasksPage> {
     if (session == null) return;
     final userId = session.user.id;
     try {
-      await Supabase.instance.client
-          .from('tasks')
-          .insert({
-            'title': title,
-            'description': description,
-            'user_id': userId,
-            'status': 'pending'
-          });
-      _fetchTasks();
+      await Supabase.instance.client.from('tasks').insert({
+        'title': title,
+        'description': description,
+        'user_id': userId,
+        'status': 'pending'
+      });
+      setState(() {
+        _tasksFuture = _fetchTasks();
+      });
     } catch (error) {
       print("Error adding task: $error");
     }
@@ -67,15 +57,14 @@ class _TasksPageState extends State<TasksPage> {
 
   Future<void> _updateTask(int taskId, String title, String description, String status) async {
     try {
-      await Supabase.instance.client
-          .from('tasks')
-          .update({
-            'title': title,
-            'description': description,
-            'status': status,
-          })
-          .eq('id', taskId);
-      _fetchTasks();
+      await Supabase.instance.client.from('tasks').update({
+        'title': title,
+        'description': description,
+        'status': status,
+      }).eq('id', taskId);
+      setState(() {
+        _tasksFuture = _fetchTasks();
+      });
     } catch (error) {
       print("Error updating task: $error");
     }
@@ -83,11 +72,10 @@ class _TasksPageState extends State<TasksPage> {
 
   Future<void> _deleteTask(int taskId) async {
     try {
-      await Supabase.instance.client
-          .from('tasks')
-          .delete()
-          .eq('id', taskId);
-      _fetchTasks();
+      await Supabase.instance.client.from('tasks').delete().eq('id', taskId);
+      setState(() {
+        _tasksFuture = _fetchTasks();
+      });
     } catch (error) {
       print("Error deleting task: $error");
     }
@@ -136,7 +124,6 @@ class _TasksPageState extends State<TasksPage> {
     String title = task.title;
     String description = task.description ?? "";
     String? status = task.activeStatus;
-    // Kullanıcıya önceden doldurulmuş alanları göstermek için
     final titleController = TextEditingController(text: title);
     final descriptionController = TextEditingController(text: description);
     final statusController = TextEditingController(text: status);
@@ -168,9 +155,7 @@ class _TasksPageState extends State<TasksPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
+              onPressed: () => Navigator.pop(context),
               child: const Text("İptal"),
             ),
             ElevatedButton(
@@ -192,36 +177,46 @@ class _TasksPageState extends State<TasksPage> {
       appBar: AppBar(
         title: const Text("Görevlerim"),
       ),
-      body: loading
-          ? const Center(child: CircularProgressIndicator())
-          : tasks.isEmpty
-              ? const Center(child: Text("Henüz görev eklenmedi."))
-              : ListView.builder(
-                  itemCount: tasks.length,
-                  itemBuilder: (context, index) {
-                    final task = tasks[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      child: ListTile(
-                        title: Text(task.title),
-                        subtitle: Text(task.description ?? ""),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.edit),
-                              onPressed: () => _showEditTaskDialog(task),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete),
-                              onPressed: () => _deleteTask(task.id),
-                            ),
-                          ],
+      body: FutureBuilder<List<Task>>(
+        future: _tasksFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text("Error: ${snapshot.error}"));
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(child: Text("Henüz görev eklenmedi."));
+          } else {
+            final tasksData = snapshot.data!;
+            return ListView.builder(
+              itemCount: tasksData.length,
+              itemBuilder: (context, index) {
+                final task = tasksData[index];
+                return Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: ListTile(
+                    title: Text(task.title),
+                    subtitle: Text(task.description ?? ""),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit),
+                          onPressed: () => _showEditTaskDialog(task),
                         ),
-                      ),
-                    );
-                  },
-                ),
+                        IconButton(
+                          icon: const Icon(Icons.delete),
+                          onPressed: () => _deleteTask(task.id),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          }
+        },
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddTaskDialog,
         child: const Icon(Icons.add),

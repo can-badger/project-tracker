@@ -11,9 +11,8 @@ class MyTodosPage extends StatefulWidget {
 }
 
 class _MyTodosPageState extends State<MyTodosPage> with SingleTickerProviderStateMixin {
-  List<Todo> todos = [];
-  bool isLoading = true;
   late TabController _tabController;
+  Future<List<Todo>>? _todosFuture;
 
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
@@ -23,25 +22,18 @@ class _MyTodosPageState extends State<MyTodosPage> with SingleTickerProviderStat
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _loadTodos();
+    _todosFuture = _loadTodos();
   }
 
-  Future<void> _loadTodos() async {
+  Future<List<Todo>> _loadTodos() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) return;
-    setState(() => isLoading = true);
-    try {
-      final data = await Supabase.instance.client
-          .from('todos')
-          .select('*')
-          .eq('user_id', userId);
-      setState(() {
-        todos = data.map((item) => Todo.fromMap(item)).toList();
-      });
-        } catch (e) {
-      print("Error loading todos: $e");
-    }
-    setState(() => isLoading = false);
+    if (userId == null) return [];
+    final data = await Supabase.instance.client
+        .from('todos')
+        .select('*')
+        .eq('user_id', userId);
+    // Map the fetched data to Todo objects.
+    return (data as List).map((item) => Todo.fromMap(item)).toList();
   }
 
   // Dialog: Yeni Todo ekleme
@@ -61,19 +53,16 @@ class _MyTodosPageState extends State<MyTodosPage> with SingleTickerProviderStat
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Görev Başlığı
                   TextField(
                     controller: _titleController,
                     decoration: const InputDecoration(labelText: "Görev Başlığı *"),
                   ),
                   const SizedBox(height: 16),
-                  // Açıklama
                   TextField(
                     controller: _descriptionController,
                     decoration: const InputDecoration(labelText: "Açıklama"),
                   ),
                   const SizedBox(height: 16),
-                  // End Date seçimi
                   Row(
                     children: [
                       Expanded(
@@ -127,7 +116,9 @@ class _MyTodosPageState extends State<MyTodosPage> with SingleTickerProviderStat
                         'is_completed': false,
                       });
                       Navigator.pop(context);
-                      _loadTodos();
+                      setState(() {
+                        _todosFuture = _loadTodos();
+                      });
                     }
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -161,7 +152,9 @@ class _MyTodosPageState extends State<MyTodosPage> with SingleTickerProviderStat
             final textStyle = todo.isCompleted
                 ? const TextStyle(color: Colors.grey)
                 : const TextStyle(color: Colors.black);
-            final endDateStr = todo.endDate != null ? DateFormat('dd-MM-yyyy').format(todo.endDate!) : "-";
+            final endDateStr = todo.endDate != null
+                ? DateFormat('dd-MM-yyyy').format(todo.endDate!)
+                : "-";
             final desc = (todo.description != null && todo.description!.length > 15)
                 ? "${todo.description!.substring(0, 15)}..."
                 : (todo.description ?? "-");
@@ -175,7 +168,9 @@ class _MyTodosPageState extends State<MyTodosPage> with SingleTickerProviderStat
                         await Supabase.instance.client.from('todos').update({
                           'is_completed': value,
                         }).eq('id', todo.id);
-                        _loadTodos();
+                        setState(() {
+                          _todosFuture = _loadTodos();
+                        });
                       } catch (e) {
                         print("Error updating is_completed: $e");
                       }
@@ -273,7 +268,9 @@ class _MyTodosPageState extends State<MyTodosPage> with SingleTickerProviderStat
                         'end_date': editEndDate?.toIso8601String(),
                       }).eq('id', todo.id);
                       Navigator.pop(context);
-                      _loadTodos();
+                      setState(() {
+                        _todosFuture = _loadTodos();
+                      });
                     } catch (e) {
                       print("Error updating todo: $e");
                     }
@@ -291,12 +288,9 @@ class _MyTodosPageState extends State<MyTodosPage> with SingleTickerProviderStat
       },
     );
   }
-
+  
   @override
   Widget build(BuildContext context) {
-    final activeTodos = todos.where((t) => !t.isCompleted).toList();
-    final completedTodos = todos.where((t) => t.isCompleted).toList();
-
     return Scaffold(
       appBar: AppBar(
         title: const Text("My ToDo's"),
@@ -309,9 +303,20 @@ class _MyTodosPageState extends State<MyTodosPage> with SingleTickerProviderStat
           ],
         ),
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
+      body: FutureBuilder<List<Todo>>(
+        future: _todosFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(child: Text("Henüz görev eklenmedi."));
+          } else {
+            final todosData = snapshot.data!;
+            final activeTodos = todosData.where((t) => !t.isCompleted).toList();
+            final completedTodos = todosData.where((t) => t.isCompleted).toList();
+            return TabBarView(
               controller: _tabController,
               children: [
                 activeTodos.isEmpty
@@ -321,7 +326,10 @@ class _MyTodosPageState extends State<MyTodosPage> with SingleTickerProviderStat
                     ? const Center(child: Text("Tamamlanan görev bulunamadı."))
                     : SingleChildScrollView(child: _buildDataTable(completedTodos)),
               ],
-            ),
+            );
+          }
+        },
+      ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.blue,
         onPressed: _showAddNewTodoDialog,

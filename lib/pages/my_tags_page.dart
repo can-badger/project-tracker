@@ -9,33 +9,25 @@ class MyTagsPage extends StatefulWidget {
 }
 
 class _MyTagsPageState extends State<MyTagsPage> {
-  List<String> myTags = [];
-  bool isLoading = true;
+  Future<List<String>>? _tagsFuture;
 
   @override
   void initState() {
     super.initState();
-    _loadMyTags();
+    _tagsFuture = _loadMyTags();
   }
 
-  Future<void> _loadMyTags() async {
+  Future<List<String>> _loadMyTags() async {
     final userEmail = Supabase.instance.client.auth.currentUser?.email;
-    if (userEmail == null) return;
-    setState(() => isLoading = true);
-    try {
-      final data = await Supabase.instance.client
-          .from('tasks')
-          .select('*')
-          .eq('assigned_to', userEmail);
-      setState(() {
-        myTags = (data as List)
-            .map((item) => item['title'].toString())
-            .toList();
-      });
-    } catch (e) {
-      print("Error loading My Tags: $e");
-    }
-    setState(() => isLoading = false);
+    if (userEmail == null) return [];
+    final data = await Supabase.instance.client
+        .from('tasks')
+        .select('*')
+        .eq('assigned_to', userEmail);
+    final tags = (data as List)
+        .map((item) => item['title'].toString())
+        .toList();
+    return tags;
   }
 
   @override
@@ -45,20 +37,30 @@ class _MyTagsPageState extends State<MyTagsPage> {
         title: const Text('My Tags'),
         centerTitle: true,
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : myTags.isEmpty
-              ? const Center(child: Text('Henüz atanan task bulunamadı.'))
-              : ListView.builder(
-                  itemCount: myTags.length,
-                  itemBuilder: (context, index) {
-                    final tag = myTags[index];
-                    return ListTile(
-                      leading: const Icon(Icons.label),
-                      title: Text(tag),
-                    );
-                  },
-                ),
+      body: FutureBuilder<List<String>>(
+        future: _tagsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(child: Text('Henüz atanan task bulunamadı.'));
+          } else {
+            final tags = snapshot.data!;
+            return ListView.builder(
+              itemCount: tags.length,
+              itemBuilder: (context, index) {
+                final tag = tags[index];
+                return ListTile(
+                  leading: const Icon(Icons.label),
+                  title: Text(tag),
+                );
+              },
+            );
+          }
+        },
+      ),
     );
   }
 }
