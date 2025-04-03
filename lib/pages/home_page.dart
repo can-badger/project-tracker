@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/project.dart';
 import '../services/project_service.dart';
-import 'project_detail/project_detail_page.dart';
+import 'project_detail_page.dart';
 import 'my_todos_page.dart';
 import 'my_tags_page.dart';
 import 'notifications_page.dart';

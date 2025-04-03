@@ -1,6 +1,6 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
-import 'supabase_client.dart';
+import 'services/supabase_client.dart';
 import 'pages/login_page.dart';
 
 Future<void> main() async {
